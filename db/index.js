@@ -1,4 +1,5 @@
-import { MongoClient } from 'mongodb';
-
+import mongoose from 'mongoose';
 const uri = process.env.MONGO_URI;
-export const db = new MongoClient(uri);
+export const connectDB = async () => {
+  await mongoose.connect(uri, { dbName: 'formBuilder' });
+};

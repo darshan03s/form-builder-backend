@@ -1,5 +1,5 @@
 import app from "./index.js"
-import { db } from './db/index.js'
+import { connectDB } from './db/index.js'
 
 function start() {
   console.log({
@@ -7,7 +7,7 @@ function start() {
     airtableClientSecret: process.env.AIRTABLE_CLIENT_SECRET ? true : false,
     mongoUri: process.env.MONGO_URI ? true : false
   })
-  db.connect().then(() => {
+  connectDB().then(() => {
     app.listen(3000, () => {
       console.log('Listening...')
     })
@@ -15,5 +15,4 @@ function start() {
     console.error(e)
   })
 }
-
 start()
