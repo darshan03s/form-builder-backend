@@ -74,7 +74,7 @@ router.get('/airtable/callback', async (req, res) => {
 
     const user = whoami.data;
 
-    await User.updateOne(
+    const result = await User.findOneAndUpdate(
       { airtableUserId: user.id },
       {
         $set: {
@@ -88,10 +88,10 @@ router.get('/airtable/callback', async (req, res) => {
           lastSeenAt: new Date()
         }
       },
-      { upsert: true }
+      { new: true, upsert: true }
     );
 
-    res.redirect(`${FRONTEND_URL}/auth/signin?success=true&userId=${user.id}&email=${user.email}`);
+    res.redirect(`${FRONTEND_URL}/auth/signin?success=true&userId=${result.id}&email=${user.email}&accessToken=${access_token}`);
   } catch (err) {
     console.error('OAuth failed:', err.response?.data || err.message);
     res.status(500).send('Login failed');
@@ -99,12 +99,9 @@ router.get('/airtable/callback', async (req, res) => {
 });
 
 router.get('/verify', async (req, res) => {
-  const fullUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-  const urlObj = new URL(fullUrl);
+  const userId = req.headers['x-user-id'];
 
-  const userId = urlObj.searchParams.get('userId');
-
-  const user = await User.findOne({ airtableUserId: userId })
+  const user = await User.findById(userId)
 
   if (!user) {
     res.status(401).json({ error: 'Not authorized' })
@@ -117,7 +114,7 @@ router.get('/verify', async (req, res) => {
     return
   }
 
-  res.status(200).json({ userId: user.airtableUserId, email: user.email })
+  res.status(200).json({ userId: user.id, email: user.email, accessToken: user.accessToken })
 })
 
 export default router;
