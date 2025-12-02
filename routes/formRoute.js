@@ -199,18 +199,9 @@ router.post('/:formId/submit', upload.any(), async (req, res) => {
     });
     await responseDoc.save();
 
-    req.files.forEach(file => {
-      fs.unlinkSync(file.path);
-    });
-
     res.status(201).json({ success: true, responseId: responseDoc._id });
   } catch (error) {
     console.error('Error submitting form:', error);
-    req.files.forEach(file => {
-      if (fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
-      }
-    });
     res.status(500).json({ error: 'Failed to submit form' });
   }
 });
