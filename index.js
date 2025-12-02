@@ -16,5 +16,6 @@ app.get('/', (req, res) => {
 
 app.use('/auth', authRouter);
 app.use('/forms', authMiddleware, formRouter);
+app.use('/uploads', express.static('uploads'));
 
 export default app

@@ -1,7 +1,12 @@
 import express from 'express';
+import multer from 'multer';
+import fs from 'fs';
 import Form from '../db/models/form.js'
+import Response from '../db/models/response.js';
+import { getTableFields } from '../utils/index.js';
 
 const router = express.Router();
+const upload = multer({ dest: 'uploads/' });
 
 router.post('/', async (req, res) => {
   const { baseId, tableId } = req.body
@@ -91,6 +96,122 @@ router.put('/:formId', async (req, res) => {
   } catch (error) {
     console.error('Error updating form:', error);
     res.status(500).json({ error: 'Failed to save form' });
+  }
+});
+
+router.post('/:formId/submit', upload.any(), async (req, res) => {
+  const { formId } = req.params;
+
+  try {
+    const form = await Form.findById(formId);
+    if (!form) {
+      return res.status(404).json({ error: 'Form not found' });
+    }
+
+    const user = req.user
+
+    const accessToken = user.accessToken;
+
+    const tableFields = await getTableFields(form.airtableBaseId, form.airtableTableId, accessToken);
+
+    const answers = {};
+    const filesByKey = {};
+
+    req.files.forEach(file => {
+      if (!filesByKey[file.fieldname]) {
+        filesByKey[file.fieldname] = [];
+      }
+      filesByKey[file.fieldname].push(file);
+    });
+
+    for (const q of form.questions) {
+      if (q.type === 'multipleAttachments') {
+        const qFiles = filesByKey[q.questionKey] || [];
+        const attachments = qFiles.map(file => ({
+          url: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`,
+          filename: file.originalname
+        }));
+        answers[q.questionKey] = attachments;
+
+        if (q.required && attachments.length === 0) {
+          return res.status(400).json({ error: `Required field missing: ${q.label}` });
+        }
+      } else {
+        let input = req.body[q.questionKey];
+        if (q.type === 'multipleSelects') {
+          if (!Array.isArray(input)) {
+            input = input ? [input] : [];
+          }
+        } else {
+          input = input || null;
+        }
+        answers[q.questionKey] = input;
+
+        if (q.required && (input === null || input === '' || (Array.isArray(input) && input.length === 0))) {
+          return res.status(400).json({ error: `Required field missing: ${q.label}` });
+        }
+
+        const field = tableFields.find(f => f.id === q.airtableFieldId);
+        if (!field) {
+          return res.status(500).json({ error: `Field not found: ${q.airtableFieldId}` });
+        }
+
+        if (q.type === 'singleSelect' && input) {
+          if (!field.options.choices.some(c => c.name === input)) {
+            return res.status(400).json({ error: `Invalid choice for ${q.label}` });
+          }
+        }
+
+        if (q.type === 'multipleSelects' && input.length > 0) {
+          if (!input.every(a => field.options.choices.some(c => c.name === a))) {
+            return res.status(400).json({ error: `Invalid choices for ${q.label}` });
+          }
+        }
+      }
+    }
+
+    const fields = {};
+    for (const q of form.questions) {
+      fields[q.airtableFieldId] = answers[q.questionKey];
+    }
+
+    const airRes = await fetch(`https://api.airtable.com/v0/${form.airtableBaseId}/${form.airtableTableId}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ fields })
+    });
+
+    if (!airRes.ok) {
+      const errData = await airRes.json();
+      return res.status(500).json({ error: 'Failed to save to Airtable', details: errData });
+    }
+
+    const airData = await airRes.json();
+    const airtableRecordId = airData.id;
+
+    const responseDoc = new Response({
+      formId,
+      airtableRecordId,
+      answers,
+    });
+    await responseDoc.save();
+
+    req.files.forEach(file => {
+      fs.unlinkSync(file.path);
+    });
+
+    res.status(201).json({ success: true, responseId: responseDoc._id });
+  } catch (error) {
+    console.error('Error submitting form:', error);
+    req.files.forEach(file => {
+      if (fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
+    });
+    res.status(500).json({ error: 'Failed to submit form' });
   }
 });
 
