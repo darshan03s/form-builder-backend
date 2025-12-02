@@ -215,4 +215,35 @@ router.post('/:formId/submit', upload.any(), async (req, res) => {
   }
 });
 
+router.get('/:formId/responses', async (req, res) => {
+  const { formId } = req.params;
+  try {
+    const responses = await Response.find({ formId })
+      .select('airtableRecordId answers createdAt deletedInAirtable')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const formatted = responses.map(r => ({
+      submissionId: r._id.toString(),
+      airtableRecordId: r.airtableRecordId,
+      createdAt: r.createdAt,
+      status: r.deletedInAirtable ? 'Deleted in Airtable' : 'Active',
+      answersPreview: Object.entries(r.answers)
+        .slice(0, 3)
+        .map(([k, v]) => {
+          if (Array.isArray(v) && v[0]?.url) return `${k}: ${v.length} file(s)`;
+          if (Array.isArray(v)) return `${k}: [${v.join(', ')}]`;
+          return `${k}: ${v}`;
+        })
+        .join(' | '),
+      answers: r.answers
+    }));
+
+    res.json({ responses: formatted });
+  } catch (error) {
+    console.error('Error fetching responses:', error);
+    res.status(500).json({ error: 'Failed to fetch responses' });
+  }
+});
+
 export default router
