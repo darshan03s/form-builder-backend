@@ -13,7 +13,7 @@ export async function getTableFields(
 
   if (!response.ok) {
     if (response.status === 401) {
-      toast.error('Sign in and try again');
+      console.error('Sign in and try again');
     }
     throw new Error(`Error: ${response.status}`);
   }
@@ -23,7 +23,7 @@ export async function getTableFields(
   const table = data.tables.find((t) => t.id === tableId);
 
   if (!table) {
-    toast.error('Table not found in this base');
+    console.error('Table not found in this base');
     return [];
   }
 
