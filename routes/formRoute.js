@@ -1,12 +1,22 @@
 import express from 'express';
 import multer from 'multer';
-import fs from 'fs';
+import path from 'path';
 import Form from '../db/models/form.js'
 import Response from '../db/models/response.js';
 import { getTableFields } from '../utils/index.js';
 
 const router = express.Router();
-const upload = multer({ dest: 'uploads/' });
+
+const storage = multer.diskStorage({
+  destination: 'uploads/',
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, unique + ext);
+  }
+});
+
+const upload = multer({ storage });
 
 router.post('/', async (req, res) => {
   const { baseId, tableId } = req.body
