@@ -34,6 +34,7 @@ router.get('/airtable', (req, res) => {
   });
 
   const authUrl = `https://airtable.com/oauth2/v1/authorize?${params.toString()}`;
+  console.log(`Redirecting to ${authUrl}`)
   res.redirect(authUrl);
 });
 
@@ -91,7 +92,11 @@ router.get('/airtable/callback', async (req, res) => {
       { new: true, upsert: true }
     );
 
-    res.redirect(`${FRONTEND_URL}/auth/signin?success=true&userId=${result.id}&email=${user.email}&accessToken=${access_token}`);
+    const redirectUrl = `${FRONTEND_URL}/auth/signin?success=true&userId=${result.id}&email=${user.email}&accessToken=${access_token}`
+
+    console.log(`Auth complete , redirecting to ${redirectUrl}`)
+
+    res.redirect(redirectUrl);
   } catch (err) {
     console.error('OAuth failed:', err.response?.data || err.message);
     res.status(500).send('Login failed');
